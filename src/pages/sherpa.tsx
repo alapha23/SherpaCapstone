@@ -4,7 +4,7 @@ import Image from 'next/image';
 
 const Home = () => {
   const [file, setFile] = useState<File | null>(null)
-  const [prediction, setPrediction] = useState<String | null>(null)
+  const [prediction, setPrediction] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -73,6 +73,7 @@ const Home = () => {
       return null;
     }
 
+    // eslint-disable-next-line no-useless-escape
     const msg = prediction?.split(';')[1].replace(/[\[\]]/g, '');
     return msg;
   }

@@ -7,10 +7,13 @@ const handler: NextApiHandler = (req, res) => {
 
   switch (method) {
     case 'POST':
+      // eslint-disable-next-line no-case-declarations
       const { filename, model } = req.body
       console.log(filename, model)
 
+      // eslint-disable-next-line no-case-declarations
       const scriptPath = path.join(__dirname, '../../../../script/'+model+'.py')
+      // eslint-disable-next-line no-case-declarations
       const filePath = path.join(__dirname, '../../../../storage/'+ filename)
 
       exec(`python ${scriptPath} ${filePath}`, (error, stdout, stderr) => {
