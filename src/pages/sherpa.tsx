@@ -1,35 +1,80 @@
 import { useState, ChangeEvent } from 'react'
+import Image from 'next/image';
+
 
 const Home = () => {
   const [file, setFile] = useState<File | null>(null)
-  const [prediction, setPrediction] = useState<number | null>(null)
+  const [prediction, setPrediction] = useState<String | null>(null)
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
     setFile(uploadedFile || null)
+
+    if (uploadedFile) {
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+
+      try {
+
+        console.log('send request to upload')
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          console.log('File uploaded successfully')
+        } else {
+          console.error('Failed to upload file')
+        }
+      } catch (error) {
+        console.error('Failed to upload file', error)
+      }
+    }
   }
 
-  const handlePredictCNN = () => {
-    // Call the CNN API here and update the prediction state
-    setPrediction(0.7) // Example prediction value
-  }
+  const handlePredict = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    setIsLoading(true); // Start loading
+    const model = (event.target as HTMLElement).dataset.model;
 
-  const handlePredictLSTM = () => {
-    // Call the LSTM API here and update the prediction state
-    setPrediction(0.3) // Example prediction value
+    if (!file) {
+      setIsLoading(false); // End loading
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/predictions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename: file.name, model: model }),
+      });
+      //{ prediction } = response.body;
+      const data = await response.json();
+      setPrediction(data.prediction);
+
+      if (response.ok) {
+        console.log('Prediction requested successfully');
+      } else {
+        console.error('Failed to request prediction');
+      }
+    } catch (error) {
+
+      console.error('Failed to request prediction', error);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const renderPredictionText = () => {
-    if (prediction !== null) {
-      if (prediction > 0.5) {
-        const confidence = Math.round(prediction * 100)
-        return `We are ${confidence}% confident that the plant is diseased.`
-      } else {
-        const confidence = Math.round((1 - prediction) * 100)
-        return `We are ${confidence}% confident that the plant is healthy.`
-      }
+    if (!prediction) {
+      return null;
     }
-    return null
+
+    const msg = prediction?.split(';')[1].replace(/[\[\]]/g, '');
+    return msg;
   }
 
   return (
@@ -48,25 +93,40 @@ const Home = () => {
       </div>
       <div className="flex space-x-4">
         <button
-          className={`bg-blue-500 text-white px-4 py-2 rounded ${
-            file ? '' : 'opacity-50 cursor-not-allowed'
-          }`}
+          data-model="cnn"
+          className={`bg-blue-500 text-white px-4 py-2 rounded ${file ? '' : 'opacity-50 cursor-not-allowed'
+            }`}
           disabled={!file}
-          onClick={handlePredictCNN}
+          onClick={handlePredict}
         >
           Predict using CNN
         </button>
         <button
-          className={`bg-blue-500 text-white px-4 py-2 rounded ${
-            file ? '' : 'opacity-50 cursor-not-allowed'
-          }`}
+          data-model="lstm"
+          className={`bg-blue-500 text-white px-4 py-2 rounded ${file ? '' : 'opacity-50 cursor-not-allowed'
+            }`}
           disabled={!file}
-          onClick={handlePredictLSTM}
+          onClick={handlePredict}
         >
           Predict using LSTM
         </button>
       </div>
+      {isLoading && (
+        <div className="border-t-4 border-blue-500 rounded-full h-12 w-12 animate-spin"></div>
+      )}
+
       {renderPredictionText() && <p className="mt-4">{renderPredictionText()}</p>}
+      <div className="mt-8 overflow-x-scroll h-40 w-3/4">
+        <div className="min-w-max">
+          <Image
+            src="/example.JPG" // path to your image
+            alt="A descriptive alt text"
+            layout="responsive"
+            width={1789}
+            height={243}
+          />
+        </div>
+      </div>
     </div>
   )
 }

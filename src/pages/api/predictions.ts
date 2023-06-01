@@ -1,12 +1,27 @@
 import { NextApiHandler } from 'next'
+import { exec } from 'child_process'
+import path from 'path'
 
 const handler: NextApiHandler = (req, res) => {
   const { method } = req
 
   switch (method) {
     case 'POST':
-      // Handle the POST request here and return the appropriate prediction
-      res.status(200).json({ prediction: 0 })
+      const { filename, model } = req.body
+      console.log(filename, model)
+
+      const scriptPath = path.join(__dirname, '../../../../script/'+model+'.py')
+      const filePath = path.join(__dirname, '../../../../storage/'+ filename)
+
+      exec(`python ${scriptPath} ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+          console.warn(error)
+        }
+        console.log(stdout)
+
+        res.status(200).json({ prediction: stdout })
+      })
+
       break
     default:
       res.setHeader('Allow', ['POST'])
