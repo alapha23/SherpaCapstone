@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
-import dotenv from 'dotenv';
-dotenv.config();
+require('dotenv').config();
 
 const nextConfig = {
   eslint: {

@@ -1,10 +1,8 @@
-import { NextApiHandler } from 'next';
-import { AxiosResponse } from 'axios';
 import fs from 'fs';
+import { NextApiHandler } from 'next';
 import {
-  Configuration, OpenAIApi, CreateCompletionRequest, CreateCompletionResponse, CreateChatCompletionRequest,
-  CreateAnswerResponse, CreateEmbeddingResponse
-} from "openai";
+  Configuration, CreateChatCompletionResponse, CreateCompletionResponse, CreateEmbeddingResponse,
+OpenAIApi} from "openai";
 
 const configuration = new Configuration({
   organization: process.env.OPENAI_ORG,
@@ -29,7 +27,7 @@ async function makeOpenAICall(prompt: string): Promise<string> {
   });
   const completionResponse: CreateCompletionResponse = response.data;
   const responseText = completionResponse.choices[0].text;
-
+  
   console.log(responseText);
   return responseText as string;
 }
@@ -40,21 +38,24 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
   const embRes: CreateEmbeddingResponse = JSON.parse(embfileContent);
   //console.log(embRes.data[0].embedding)
 
-
+  try{
   const response = await openai.createChatCompletion({
     model: "gpt-3.5-turbo",
     messages: [
       {
-        "role": "system", "content": JSON.stringify(embRes.data[0].embedding.slice(0, 100))
+        "role": "system", "content": JSON.stringify(embRes.data[0].embedding.slice(0, 500))
       },
       { "role": "user", "content": prompt }
     ]
   });
-  const completionResponse: CreateCompletionResponse = response.data;
-  const responseText = completionResponse.choices[0].text;
+  const completionResponse: CreateChatCompletionResponse = response.data;
+  const responseText = completionResponse.choices[0].message?.content;
 
-  console.log(responseText);
   return responseText as string;
+} catch(error) {
+   console.log(error)
+}
+  return '';
 }
 
 // Usage example
