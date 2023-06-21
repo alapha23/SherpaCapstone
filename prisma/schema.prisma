@@ -1,0 +1,22 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Article {
+  article_id    Int     @id
+  article_title String
+  Chunk         Chunk[]
+}
+
+model Chunk {
+  chunk_id         Int     @id
+  article_id       Int
+  chunk_text       Bytes?
+  chunk_embeddings Bytes?
+  article          Article @relation(fields: [article_id], references: [article_id])
+}
