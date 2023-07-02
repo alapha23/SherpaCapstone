@@ -6,10 +6,17 @@ import {
   OpenAIApi
 } from "openai";
 
-const configuration = new Configuration({
-  organization: process.env.OPENAI_ORG,
-  apiKey: process.env.OPENAI_KEY,
-});
+var configuration;
+if (process.env.OPENAI_ORG) {
+  configuration = new Configuration({
+    organization: process.env.OPENAI_ORG,
+    apiKey: process.env.OPENAI_KEY,
+  });
+} else {
+  configuration = new Configuration({
+    apiKey: process.env.OPENAI_KEY,
+  });
+}
 const openai = new OpenAIApi(configuration);
 const prisma = new PrismaClient();
 
@@ -17,14 +24,17 @@ const prisma = new PrismaClient();
 async function getMostRelevantArticleChunk(question: string) {
   const response = await axios.post('http://localhost:8000/search', {
     question: question,
+    temperature: 0.5
   });
 
-  return response.data;
+  return response.data['context'];
 }
 
-async function initEmbeddingSearchEngine(concatenatedChunks: string) {
+async function initEmbeddingSearchEngine() {
   const response = await axios.post('http://localhost:8000/init', {
-    chunks_str: concatenatedChunks,
+    "file_path": ["../storage/data1.pdf", "../storage/data2.pdf", "../storage/data3.pdf", "../storage/data4.pdf", "../storage/data5.pdf", "../storage/data6.pdf"],
+    "chunk_size": 500,
+    "overlap_size": 50
   });
 
   return response.data;
@@ -32,26 +42,23 @@ async function initEmbeddingSearchEngine(concatenatedChunks: string) {
 
 
 async function makeOpenAIChatCall(prompt: string): Promise<string> {
-  const chunks = await prisma.chunk.findMany();
-  const concatenatedChunks = chunks.map(item => item.chunk_text).join('\n');
-  await initEmbeddingSearchEngine(concatenatedChunks);
+  //const chunks = await prisma.chunk.findMany();
+  //const concatenatedChunks = chunks.map(item => item.chunk_text).join('\n');
+  await initEmbeddingSearchEngine();
   const contexts = await getMostRelevantArticleChunk(prompt);
-  console.log('contexts', contexts);
-
-  /*const embfilePath = './storage/1.emb';
-  const embfileContent = fs.readFileSync(embfilePath, 'utf-8');
-  const embRes: CreateEmbeddingResponse = JSON.parse(embfileContent);*/
-  //console.log(embRes.data[0].embedding)
+  //console.log('contexts', contexts);
 
   try {
+    const messages = contexts.map((context: string) => ({
+      role: "system",
+      content: context,
+    }));
+
+    messages.push({ role: "user", content: prompt });
+
     const response = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
-      messages: [
-        {
-          "role": "system", "content": contexts['context']
-        },
-        { "role": "user", "content": prompt }
-      ]
+      messages: messages,
     });
     const completionResponse: CreateChatCompletionResponse = response.data;
     const responseText = completionResponse.choices[0].message?.content;
