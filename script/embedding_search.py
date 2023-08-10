@@ -2,12 +2,18 @@ from flask import Flask, request, jsonify
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
-import sys
+import sys, os
 import random
 import PyPDF2
+import openai
+from dotenv import load_dotenv
+import re
 
 engine = None
 app = Flask(__name__)
+load_dotenv()
+
+openai.api_key = os.getenv('OPENAI_KEY')
 
 # This will download and load a pre-trained model from Hugging Face's model hub
 class EmbeddingSearchEngine:
@@ -113,6 +119,56 @@ class Temperature:
                     break
         return selected_indices   
     
+
+def sanitize_text(text):
+    # Strip \n, \t, and non-ASCII characters
+    sanitized_text = re.sub(r'[\n\t]', ' ', text)
+    sanitized_text = ''.join(character for character in sanitized_text if ord(character) < 128)
+    return sanitized_text
+
+def summarize_text(text):
+    text = sanitize_text(text)
+    # Using the Completion endpoint of the OpenAI API to get a summary
+    response = openai.Completion.create(
+        engine="davinci",
+        prompt=f"Summarize the following text: {text}",
+        max_tokens=200
+    )
+    return response.choices[0].text.strip()
+
+
+@app.route('/init_summary', methods=['POST'])
+def init_summary():
+    print('embedding engine init, load file summaries as chunks')
+    data = request.get_json()
+    all_files = data.get('file_path') #"../storage/data1.pdf" 
+    chunk_size = data.get('chunk_size') #500
+    overlap_size = 50
+    #chunks_str = data.get('chunks_str')
+    #chunks = chunks_str.split('\n')
+    #e.g., chunks = ['abc', 'def']
+    global engine
+    engine = EmbeddingSearchEngine()
+    chunks = []
+    # Iterate over all files in the specified directory
+    for filename in os.listdir(all_files):
+        file_path = os.path.join(all_files, filename)
+        if os.path.isfile(file_path): # Only process if it's a file
+            print(file_path)
+            chunks += engine.parse(file_path, chunk_size, overlap_size)
+    # Convert chunk array into summary array
+    for i in range(len(chunks)):
+        chunk = chunks[i]
+        summary = summarize_text(chunk)
+        print(chunks[i])
+        chunks[i] = summary
+        print(summary)
+        break
+    # chunk_size is not needed anymore, passed as stub
+    engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
+    return jsonify({'message': 'Initialization successful'})
+
+
 @app.route('/init', methods=['POST'])
 def init():
     print('embedding engine init')
@@ -126,8 +182,15 @@ def init():
     global engine
     engine = EmbeddingSearchEngine()
     chunks = []
-    for file_path in all_files:
-        chunks += engine.parse(file_path, chunk_size, overlap_size)
+    # Iterate over all files in the specified directory
+    for filename in os.listdir(all_files):
+        file_path = os.path.join(all_files, filename)
+        if os.path.isfile(file_path): # Only process if it's a file
+            print(file_path)
+            chunks += engine.parse(file_path, chunk_size, overlap_size)
+    #for file_path in all_files:
+    #    print(file_path)
+    #    chunks += engine.parse(file_path, chunk_size, overlap_size)
     engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
 

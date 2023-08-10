@@ -44,7 +44,9 @@ async function initEmbeddingSearchEngine() {
 async function makeOpenAIChatCall(prompt: string): Promise<string> {
   //const chunks = await prisma.chunk.findMany();
   //const concatenatedChunks = chunks.map(item => item.chunk_text).join('\n');
-  await initEmbeddingSearchEngine();
+
+  //await initEmbeddingSearchEngine();
+
   const contexts = await getMostRelevantArticleChunk(prompt);
   //console.log('contexts', contexts);
 
@@ -58,6 +60,7 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
 
     const response = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
+      //model: "gpt-4-0613",
       messages: messages,
     });
     const completionResponse: CreateChatCompletionResponse = response.data;
