@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
+import sys
+sys.path.append("/home/ubuntu/.local/lib/python3.8/site-packages/")
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
-import sys, os
+import os
 import random
 import PyPDF2
 import openai
@@ -129,12 +131,15 @@ def sanitize_text(text):
 def summarize_text(text):
     text = sanitize_text(text)
     # Using the Completion endpoint of the OpenAI API to get a summary
-    response = openai.Completion.create(
-        engine="davinci",
-        prompt=f"Summarize the following text: {text}",
-        max_tokens=200
+    response = openai.ChatCompletion.create(
+      model="gpt-3.5-turbo",
+      messages=[
+        {"role": "system", "content": "You are a helpful assistant. You summarize academic article chunks professionally, accurately"},
+        {"role": "user", "content": "Summarize the following text: "+text}
+      ],
+      max_tokens=200
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 
 @app.route('/init_summary', methods=['POST'])
@@ -160,10 +165,7 @@ def init_summary():
     for i in range(len(chunks)):
         chunk = chunks[i]
         summary = summarize_text(chunk)
-        print(chunks[i])
         chunks[i] = summary
-        print(summary)
-        break
     # chunk_size is not needed anymore, passed as stub
     engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
