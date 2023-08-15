@@ -1,5 +1,6 @@
 openai
 flask
 PyPDF2
-faiss
+faiss-cpu
+sentence-transformers
 python-dotenv

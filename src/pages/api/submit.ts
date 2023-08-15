@@ -2,6 +2,7 @@ import axios from 'axios';
 import { NextApiHandler } from 'next';
 import { PrismaClient } from "@prisma/client";
 import {
+  ChatCompletionRequestMessage,
   Configuration, CreateChatCompletionResponse, CreateCompletionResponse, CreateEmbeddingResponse,
   OpenAIApi
 } from "openai";
@@ -31,7 +32,7 @@ async function getMostRelevantArticleChunk(question: string) {
   let config = {
     method: 'post',
     maxBodyLength: Infinity,
-    url: 'https://8000-alapha23-sherpacapstone-tzmkgcxv3c4.ws.legacy.devspaces.com/search',
+    url: process.env.EMBEDDING_SERVER_URL,
     headers: {
       'Content-Type': 'application/json'
     },
@@ -46,6 +47,11 @@ async function getMostRelevantArticleChunk(question: string) {
     .catch((error) => {
       console.log(error);
     });
+
+  // print out the chunks
+  console.log("References:\n")
+  console.log(response)
+
   return response;
 }
 
@@ -67,10 +73,10 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
   //await initEmbeddingSearchEngine();
 
   const contexts = await getMostRelevantArticleChunk(prompt);
-  console.log('contexts', contexts);
+  //console.log('contexts', contexts);
 
   try {
-    const messages = [
+    const messages: ChatCompletionRequestMessage[] = [
       { role: "system", content: "You are a helpful academic agent, you answer questions regarding urban planning in professional, academic, accurate ways" },
       { role: "system", content: JSON.stringify(contexts) }
     ];
@@ -81,7 +87,7 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
       //model: "gpt-3.5-turbo",
       model: "gpt-4-0613",
       messages: messages,
-      max_tokens: 2400
+      max_tokens: 4000
     });
     const completionResponse: CreateChatCompletionResponse = response.data;
     const responseText = completionResponse.choices[0].message?.content;

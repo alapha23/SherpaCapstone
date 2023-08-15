@@ -11,6 +11,8 @@ import openai
 from dotenv import load_dotenv
 import re
 import time
+from multiprocessing import Pool
+
 
 engine = None
 app = Flask(__name__)
@@ -46,7 +48,7 @@ class EmbeddingSearchEngine:
         question_embedding = self.model.encode([question])[0]
         # Find the most similar article chunk
         D, I = self.index.search(np.array([question_embedding]), k)
-        print("Most similar article chunk to the question is:", self.chunks[I[0][0]])
+        #print("Most similar article chunk to the question is:", self.chunks[I[0][0]])
         return [self.chunks[i] for i in I[0]]
 
     def _extract_text_from_pdf(self, file_path):
@@ -75,13 +77,14 @@ class EmbeddingSearchEngine:
         return chunks
 
     # parse pdf
-    def parse(self, file_path, chunk_size, overlap_size):
+    def parse(self, file_path, chunk_size, overlap_size, filename):
         extracted_text = self._extract_text_from_pdf(file_path)
         chunks = self._split_text_into_chunks(extracted_text, chunk_size, overlap_size)
     
-        #for chunk in chunks:
-        #    print(chunk)
-        #    print("---")
+        for i in range(len(chunks)):
+            #print(chunk)
+            #print("---")
+            chunks[i] = filename + "\\\\\\"+ chunks[i]
         return chunks
 
 
@@ -129,7 +132,9 @@ def sanitize_text(text):
     sanitized_text = ''.join(character for character in sanitized_text if ord(character) < 128)
     return sanitized_text
 
-def summarize_text(text, max_retry=3, retry_delay=2):
+
+
+def summarize_text(text, max_retry=10, retry_delay=10):
     text = sanitize_text(text)
     
     for _ in range(max_retry):
@@ -139,12 +144,12 @@ def summarize_text(text, max_retry=3, retry_delay=2):
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant. You summarize academic article chunks professionally, accurately"},
-                    {"role": "user", "content": "Summarize the following text: "+text}
+                    {"role": "user", "content": "Summarize the following text, note down important evidences: "+text}
                 ],
-                max_tokens=200
+                max_tokens=500
             )            
             return response.choices[0].message['content'].strip()        
-        except openai.error.APIError as e:
+        except Exception as e:
             print(f"API Error: {e}")
             print("Retrying...")
             time.sleep(retry_delay)
@@ -152,33 +157,40 @@ def summarize_text(text, max_retry=3, retry_delay=2):
     return None  # Return None if max_retry attempts fail
 
 
+def parallel_summarize(args):
+    i, chunk = args
+    summary = summarize_text(chunk)
+    return (i, summary)
+
 
 @app.route('/init_summary', methods=['GET'])
 def init_summary():
     print('embedding engine init, load file summaries as chunks')
     data = request.get_json()
     all_files = data.get('file_path') #"../storage/data1.pdf" 
-    chunk_size = data.get('chunk_size') #500
-    overlap_size = 50
-    #chunks_str = data.get('chunks_str')
-    #chunks = chunks_str.split('\n')
-    #e.g., chunks = ['abc', 'def']
+    chunk_size = data.get('chunk_size') #8000
+    overlap_size = 200
+
     global engine
     engine = EmbeddingSearchEngine()
     chunks = []
+
     # Iterate over all files in the specified directory
     for filename in os.listdir(all_files):
         file_path = os.path.join(all_files, filename)
         if os.path.isfile(file_path): # Only process if it's a file
             print(file_path)
-            chunks += engine.parse(file_path, chunk_size, overlap_size)
-    # Convert chunk array into summary array
-    for i in range(len(chunks)):
-        chunk = chunks[i]
-        summary = summarize_text(chunk)
-        chunks[i] = summary
-        print(str(i)+"th chunk done out of "+str(len(chunks)))
-    # chunk_size is not needed anymore, passed as stub
+            chunks += engine.parse(file_path, chunk_size, overlap_size, filename)
+ 
+    # Use multiprocessing for parallel summarization
+    with Pool() as pool:
+        # Use imap_unordered to get results as soon as they are ready
+        # This will not guarantee order, but we get results faster
+        for i, (idx, summary) in enumerate(pool.imap_unordered(parallel_summarize, enumerate(chunks))):
+            chunks[idx] = summary
+            print(f"{idx}th chunk done out of {len(chunks)}")
+
+
     engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
 
@@ -202,9 +214,6 @@ def init():
         if os.path.isfile(file_path): # Only process if it's a file
             print(file_path)
             chunks += engine.parse(file_path, chunk_size, overlap_size)
-    #for file_path in all_files:
-    #    print(file_path)
-    #    chunks += engine.parse(file_path, chunk_size, overlap_size)
     engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
 
