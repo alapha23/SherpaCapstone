@@ -10,6 +10,7 @@ import PyPDF2
 import openai
 from dotenv import load_dotenv
 import re
+import time
 
 engine = None
 app = Flask(__name__)
@@ -128,21 +129,31 @@ def sanitize_text(text):
     sanitized_text = ''.join(character for character in sanitized_text if ord(character) < 128)
     return sanitized_text
 
-def summarize_text(text):
+def summarize_text(text, max_retry=3, retry_delay=2):
     text = sanitize_text(text)
-    # Using the Completion endpoint of the OpenAI API to get a summary
-    response = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
-      messages=[
-        {"role": "system", "content": "You are a helpful assistant. You summarize academic article chunks professionally, accurately"},
-        {"role": "user", "content": "Summarize the following text: "+text}
-      ],
-      max_tokens=200
-    )
-    return response.choices[0].message.content.strip()
+    
+    for _ in range(max_retry):
+        try:
+            # Using the ChatCompletion endpoint of the OpenAI API to get a summary
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. You summarize academic article chunks professionally, accurately"},
+                    {"role": "user", "content": "Summarize the following text: "+text}
+                ],
+                max_tokens=200
+            )            
+            return response.choices[0].message['content'].strip()        
+        except openai.error.APIError as e:
+            print(f"API Error: {e}")
+            print("Retrying...")
+            time.sleep(retry_delay)
+    
+    return None  # Return None if max_retry attempts fail
 
 
-@app.route('/init_summary', methods=['POST'])
+
+@app.route('/init_summary', methods=['GET'])
 def init_summary():
     print('embedding engine init, load file summaries as chunks')
     data = request.get_json()
@@ -166,6 +177,7 @@ def init_summary():
         chunk = chunks[i]
         summary = summarize_text(chunk)
         chunks[i] = summary
+        print(str(i)+"th chunk done out of "+str(len(chunks)))
     # chunk_size is not needed anymore, passed as stub
     engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
@@ -206,7 +218,7 @@ def search():
     answers = engine.answer(question)
     # use top 5 with temperature
     spice_temp = Temperature(temperature)
-    answer = spice_temp.select_random_result(candidates=answers, top_k=5)
+    answer = spice_temp.select_random_result(candidates=answers, top_k=10)
 
     return jsonify({'context': answer})
 

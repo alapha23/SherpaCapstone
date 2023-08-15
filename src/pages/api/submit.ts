@@ -22,12 +22,31 @@ const prisma = new PrismaClient();
 
 
 async function getMostRelevantArticleChunk(question: string) {
-  const response = await axios.post('http://localhost:8000/search', {
-    question: question,
-    temperature: 0.5
+  console.log('Trying to get the most relevant article chunk');
+  let data = JSON.stringify({
+    "question": question,
+    "temperature": 0.5
   });
 
-  return response.data['context'];
+  let config = {
+    method: 'post',
+    maxBodyLength: Infinity,
+    url: 'https://8000-alapha23-sherpacapstone-tzmkgcxv3c4.ws.legacy.devspaces.com/search',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    data: data
+  };
+
+  const response = await axios.request(config)
+    .then((response) => {
+      //console.log(JSON.stringify(response.data.context));
+      return JSON.stringify(response.data.context);
+    })
+    .catch((error) => {
+      console.log(error);
+    });
+  return response;
 }
 
 async function initEmbeddingSearchEngine() {
@@ -48,20 +67,21 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
   //await initEmbeddingSearchEngine();
 
   const contexts = await getMostRelevantArticleChunk(prompt);
-  //console.log('contexts', contexts);
+  console.log('contexts', contexts);
 
   try {
-    const messages = contexts.map((context: string) => ({
-      role: "system",
-      content: context,
-    }));
+    const messages = [
+      { role: "system", content: "You are a helpful academic agent, you answer questions regarding urban planning in professional, academic, accurate ways" },
+      { role: "system", content: JSON.stringify(contexts) }
+    ];
 
     messages.push({ role: "user", content: prompt });
 
     const response = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo",
-      //model: "gpt-4-0613",
+      //model: "gpt-3.5-turbo",
+      model: "gpt-4-0613",
       messages: messages,
+      max_tokens: 2400
     });
     const completionResponse: CreateChatCompletionResponse = response.data;
     const responseText = completionResponse.choices[0].message?.content;
