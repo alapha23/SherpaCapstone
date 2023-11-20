@@ -18,6 +18,9 @@ engine = None
 app = Flask(__name__)
 load_dotenv()
 
+CACHE_DIR = '.cache'
+
+
 openai.api_key = os.getenv('OPENAI_KEY')
 
 # This will download and load a pre-trained model from Hugging Face's model hub
@@ -77,14 +80,14 @@ class EmbeddingSearchEngine:
         return chunks
 
     # parse pdf
-    def parse(self, file_path, chunk_size, overlap_size, filename):
+    def parse(self, file_path, chunk_size, overlap_size):
         extracted_text = self._extract_text_from_pdf(file_path)
         chunks = self._split_text_into_chunks(extracted_text, chunk_size, overlap_size)
     
         for i in range(len(chunks)):
             #print(chunk)
             #print("---")
-            chunks[i] = filename + "\\\\\\"+ chunks[i]
+            chunks[i] = chunks[i]
         return chunks
 
 
@@ -158,10 +161,49 @@ def summarize_text(text, max_retry=10, retry_delay=10):
 
 
 def parallel_summarize(args):
-    i, chunk = args
+    unique_id, chunk = args
     summary = summarize_text(chunk)
-    return (i, summary)
+    return (unique_id, summary)
 
+def get_all_cached_summaries():
+    """Retrieve all summaries from the cache directory."""
+    summaries = []
+    for cache_file in os.listdir(CACHE_DIR):
+        if cache_file.endswith('.cache'):
+            with open(os.path.join(CACHE_DIR, cache_file), 'r') as f:
+                summaries.append(f.read().strip())
+    return summaries
+
+def load_cache():
+    """Load summaries from the cache directory."""
+    summaries = {}
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+    else:
+        for cache_file in os.listdir(CACHE_DIR):
+            if cache_file.endswith('.cache'):
+                with open(os.path.join(CACHE_DIR, cache_file), 'r') as f:
+                    filename, chunk_idx = cache_file.rsplit('.', 1)[0].rsplit('_', 1)
+                    summary = f.read().strip()
+                    if filename not in summaries:
+                        summaries[filename] = {}
+                    summaries[filename][int(chunk_idx)] = summary
+    return summaries
+
+def save_summary_to_cache(chunk_idx, summary):
+    """Save a summary to a cache file."""
+    with open(os.path.join(CACHE_DIR, f"{chunk_idx}.cache"), 'w') as f:
+        f.write(chunk_idx+"\n"+summary)
+
+def is_cached(filename, num_chunks):
+    """Check if all chunks of a file are present in the cache."""
+    for idx in range(num_chunks):
+        chunk_id = f"{filename}_{idx}"
+        if not os.path.exists(os.path.join(CACHE_DIR, f"{chunk_id}.cache")):
+            print(filename, "is not cached")
+            return False
+    print(filename, "is cached")
+    return True
 
 @app.route('/init_summary', methods=['GET'])
 def init_summary():
@@ -179,19 +221,30 @@ def init_summary():
     for filename in os.listdir(all_files):
         file_path = os.path.join(all_files, filename)
         if os.path.isfile(file_path): # Only process if it's a file
-            print(file_path)
-            chunks += engine.parse(file_path, chunk_size, overlap_size, filename)
- 
-    # Use multiprocessing for parallel summarization
+            new_chunks = engine.parse(file_path, chunk_size, overlap_size)
+            is_cached_bool = is_cached(filename, len(new_chunks))
+            if not is_cached_bool:
+                idx = 0
+                for chunk in new_chunks:
+                    unique_id = f"{filename}_{idx}"
+                    chunks.append((unique_id, chunk))
+                    idx += 1
+
+
     with Pool() as pool:
         # Use imap_unordered to get results as soon as they are ready
         # This will not guarantee order, but we get results faster
-        for i, (idx, summary) in enumerate(pool.imap_unordered(parallel_summarize, enumerate(chunks))):
-            chunks[idx] = summary
-            print(f"{idx}th chunk done out of {len(chunks)}")
+        for (unique_id, summary) in pool.imap_unordered(parallel_summarize, chunks):
+            # Store the summary in some data structure using unique_id
+            # For simplicity, here we just print it
+            save_summary_to_cache(unique_id, summary)
+            print(unique_id, "Done")
 
 
-    engine = EmbeddingSearchEngine(chunks=chunks, chunk_size=chunk_size)
+    # Get all summaries from cache (both old and new)
+    all_summaries = get_all_cached_summaries()
+
+    engine = EmbeddingSearchEngine(chunks=all_summaries, chunk_size=chunk_size)
     return jsonify({'message': 'Initialization successful'})
 
 

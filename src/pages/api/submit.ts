@@ -6,6 +6,7 @@ import {
   Configuration, CreateChatCompletionResponse, CreateCompletionResponse, CreateEmbeddingResponse,
   OpenAIApi
 } from "openai";
+import { NodeNextRequest } from 'next/dist/server/base-http/node';
 
 var configuration;
 if (process.env.OPENAI_ORG) {
@@ -22,7 +23,7 @@ const openai = new OpenAIApi(configuration);
 const prisma = new PrismaClient();
 
 
-async function getMostRelevantArticleChunk(question: string) {
+async function getMostRelevantArticleChunk(question: string): Promise<string[]> {
   console.log('Trying to get the most relevant article chunk');
   let data = JSON.stringify({
     "question": question,
@@ -39,20 +40,19 @@ async function getMostRelevantArticleChunk(question: string) {
     data: data
   };
 
-  const response = await axios.request(config)
-    .then((response) => {
-      //console.log(JSON.stringify(response.data.context));
-      return JSON.stringify(response.data.context);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
+  try {
+    const response = await axios.request(config);
+    const context = JSON.parse(JSON.stringify(response.data.context));
+    return context;
+  } catch (error) {
+    console.log(error);
+    return [""];
+  }
 
   // print out the chunks
-  console.log("References:\n")
-  console.log(response)
-
-  return response;
+  //console.log("References:\n")
+  //console.log(response)
+  //return response as string;
 }
 
 async function initEmbeddingSearchEngine() {
@@ -66,22 +66,49 @@ async function initEmbeddingSearchEngine() {
 }
 
 
+async function enhancePrompt(prompt: string): Promise<string> {
+
+  const req_prompt = "Change the question below into a better prompt so that chagpt can generate a more detailed, acccurate, academic answer that includes evidences.\n" + prompt;
+
+  try {
+    const messages: ChatCompletionRequestMessage[] = [
+      { role: "system", content: "You are a helpful academic agent, you construct prompt regarding urban planning in professional, academic, accurate ways" },
+      { role: "user", content: req_prompt }
+    ];
+
+    const response = await openai.createChatCompletion({
+      model: "gpt-4-0613",
+      messages: messages,
+      max_tokens: 1200
+    });
+    const completionResponse: CreateChatCompletionResponse = response.data;
+    const responseText = completionResponse.choices[0].message?.content;
+    console.log("Enhanced Prompt", responseText)
+
+    return responseText ? responseText : prompt;
+  } catch (error) {
+    console.log(error)
+    return prompt
+  }
+}
+
 async function makeOpenAIChatCall(prompt: string): Promise<string> {
   //const chunks = await prisma.chunk.findMany();
   //const concatenatedChunks = chunks.map(item => item.chunk_text).join('\n');
 
   //await initEmbeddingSearchEngine();
 
-  const contexts = await getMostRelevantArticleChunk(prompt);
-  //console.log('contexts', contexts);
+  const enhanced_prompt = prompt; //await enhancePrompt(prompt);
+  console.log("Prompt:\n" + enhanced_prompt + "\n")
 
+  const contexts = await getMostRelevantArticleChunk(enhanced_prompt);
   try {
     const messages: ChatCompletionRequestMessage[] = [
       { role: "system", content: "You are a helpful academic agent, you answer questions regarding urban planning in professional, academic, accurate ways" },
       { role: "system", content: JSON.stringify(contexts) }
     ];
 
-    messages.push({ role: "user", content: prompt });
+    messages.push({ role: "user", content: enhanced_prompt });
 
     const response = await openai.createChatCompletion({
       //model: "gpt-3.5-turbo",
@@ -92,6 +119,11 @@ async function makeOpenAIChatCall(prompt: string): Promise<string> {
     const completionResponse: CreateChatCompletionResponse = response.data;
     const responseText = completionResponse.choices[0].message?.content;
 
+    console.log("Answer:\n" + responseText, "\n")
+    console.log('References:\n');
+    for (const context of contexts) {
+      console.log(context.replace(/U\.S\./g, "US").split(".")[0] + "\n");
+    }
     return responseText as string;
   } catch (error) {
     console.log(error)
@@ -107,7 +139,7 @@ const handler: NextApiHandler = (req, res) => {
     case 'POST':
       makeOpenAIChatCall(prompt)
         .then((response) => {
-          console.log('GPT API response:', response);
+          //console.log('GPT API response:', response);
           res.status(200).json({ answer: response })
         })
         .catch((error) => {
