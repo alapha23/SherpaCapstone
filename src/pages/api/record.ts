@@ -63,7 +63,7 @@ function runPythonInference(filePath: string, model: string): Promise<string> {
         resolve(stdout.trim());
       });
     } else if (model === "whisper-tiny-ft") {
-      exec(`python ${inferScriptPath} --audio_path=${filePath} --model_path=models/whisper-tiny-finetune --task transcribe --model tiny --language Korean`, (error, stdout, stderr) => {
+      exec(`python ${inferScriptPath} --audio_path=${filePath} --model_path=models/whisper-tiny-finetune --task transcribe --language Korean`, (error, stdout, stderr) => {
         if (error) {
           console.error('Error: ', stderr);
           reject(error);
