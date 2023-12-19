@@ -64,7 +64,7 @@ const RecordAudio = () => {
       </button>
       {!recording && (
         <button onClick={sendAudioToServer} className={styles.button}>
-          Send to Server
+          Transcribe
         </button>
       )}
       <textarea
@@ -87,7 +87,7 @@ const RecordAudio = () => {
         </button>
       </div>
       <div className={styles.descriptionContainer}>
-        <p>{selectedModel === 'whisper-tiny' ? 'WER: ???; CER: ???' : 'WER: ???; CER: ???'}</p>
+        <p>{selectedModel === 'whisper-tiny' ? 'openai/whisper-tiny: WER: ???, CER: ???' : 'LoRA Fine-tuned model: WER: 0.51, CER: 0.4'}</p>
       </div>
     </div>
   );
