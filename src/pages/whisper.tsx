@@ -4,6 +4,7 @@ import styles from '../styles/RecordAudio.module.css';
 const RecordAudio = () => {
   const [recording, setRecording] = useState(false);
   const [responseMessage, setResponseMessage] = useState('');
+  const [selectedModel, setSelectedModel] = useState('whisper-tiny');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -32,6 +33,7 @@ const RecordAudio = () => {
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
     const formData = new FormData();
     formData.append('audio', audioBlob);
+    formData.append('model', selectedModel);
 
     try {
       const response = await fetch('/api/record', {
@@ -70,6 +72,23 @@ const RecordAudio = () => {
         readOnly
         className={styles.textarea}
       />
+      <div className={styles.tabContainer}>
+        <button
+          className={`${styles.tabButton} ${selectedModel === 'whisper-tiny' ? styles.activeTab : ''}`}
+          onClick={() => setSelectedModel('whisper-tiny')}
+        >
+          whisper-tiny
+        </button>
+        <button
+          className={`${styles.tabButton} ${selectedModel === 'whisper-tiny-ft' ? styles.activeTab : ''}`}
+          onClick={() => setSelectedModel('whisper-tiny-ft')}
+        >
+          whisper-tiny-ft
+        </button>
+      </div>
+      <div className={styles.descriptionContainer}>
+        <p>{selectedModel === 'whisper-tiny' ? 'WER: ???; CER: ???' : 'WER: ???; CER: ???'}</p>
+      </div>
     </div>
   );
 };

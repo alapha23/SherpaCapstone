@@ -32,3 +32,36 @@
   height: 100px;
   resize: none;
 }
+
+
+.tabContainer {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.tabButton {
+  border: 2px solid #ddd;
+  padding: 10px 20px;
+  margin: 0 5px;
+  cursor: pointer;
+  background-color: #f9f9f9;
+  transition: background-color 0.3s;
+}
+
+.tabButton:hover {
+  background-color: #ececec;
+}
+
+.activeTab {
+  border-color: #333;
+  background-color: #555;
+  color: #fff;
+}
+
+.descriptionContainer {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  background-color: #f9f9f9;
+}

@@ -1,37 +1,30 @@
-# infer.py
-import torch
-import torchaudio
+import whisper
 import sys
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-from pathlib import Path
 
-token = "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"
-def load_model(model_name):
-    global token
-    model = Wav2Vec2ForCTC.from_pretrained(model_name, token=token)
-    processor = Wav2Vec2Processor.from_pretrained(model_name, token=token)
-    return model, processor
+def transcribe_audio(file_path):
+    # Create an instance of the model
+    model = whisper.load_model("tiny")
 
-def transcribe(audio_path, model, processor):
-    waveform, _ = torchaudio.load(audio_path)
-    inputs = processor(waveform, sampling_rate=16_000, return_tensors="pt", padding=True)
+    # Load the audio file and transcribe
+    audio = whisper.load_audio(file_path)
+    audio = whisper.pad_or_trim(audio)
+    mel = whisper.log_mel_spectrogram(audio).to(model.device)
 
-    with torch.no_grad():
-        logits = model(inputs.input_values, attention_mask=inputs.attention_mask).logits
+    # Decode the audio to text
+    options = whisper.DecodingOptions(fp16 = False)
+    result = whisper.decode(model, mel, options)
 
-    predicted_ids = torch.argmax(logits, dim=-1)
-    transcription = processor.batch_decode(predicted_ids)
-    return transcription
-
-def main():
-    audio_path = sys.argv[1]
-    #model_name = "/home/zgao/Documents/WhisperWeb/pytorch_model.bin"
-    model_name = "alapha23/whisper-small-ko"
-
-    model, processor = load_model(model_name)
-    transcription = transcribe(audio_path, model, processor)
-    print(transcription[0])  # Print the result to stdout
+    # Return the transcription text
+    return result.text
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Please provide an audio file path.")
+        sys.exit(1)
 
+    file_path = sys.argv[1]
+    try:
+        transcription = transcribe_audio(file_path)
+        print(transcription)
+    except Exception as e:
+        print(f"An error occurred: {e}")
