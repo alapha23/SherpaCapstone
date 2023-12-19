@@ -22,7 +22,7 @@ add_arg("local_files_only",      type=bool, default=True,  help="是否只在本
 add_arg("use_flash_attention_2", type=bool, default=False, help="是否使用FlashAttention2加速")
 add_arg("use_bettertransformer", type=bool, default=False, help="是否使用BetterTransformer加速")
 args = parser.parse_args()
-print_arguments(args)
+#print_arguments(args)
 
 # 设置设备
 device = "cuda:0" if torch.cuda.is_available() and args.use_gpu else "cpu"

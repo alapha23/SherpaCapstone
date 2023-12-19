@@ -33,7 +33,7 @@ export default async function handler(
     // Process the file or send it to Hugging Face API
     try {
       const response = await processAudioFile(audioFile.filepath, model);
-      res.status(200).json({ message: 'File processed successfully', response });
+      res.status(200).json({ message: response });
     } catch (error) {
       res.status(500).json({ error: 'Error processing the file' });
     }
@@ -44,13 +44,14 @@ export default async function handler(
 async function processAudioFile(filePath: string, model: string) {
   try {
     const transcription = await runPythonInference(filePath, model);
+    console.log('Transcription', transcription);
     return transcription;
   } catch (error) {
     throw new Error('Error in Python inference script: ' + error);
   }
 }
 
-function runPythonInference(filePath: string, model: string): Promise<string> {
+async function runPythonInference(filePath: string, model: string): Promise<string> {
   return new Promise((resolve, reject) => {
     console.log(filePath, model);
     //exec(`python /home/zgao/Documents/WhisperWeb/script/inference.py ${filePath}`, (error, stdout, stderr) => {
