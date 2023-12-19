@@ -2,6 +2,38 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 
+
+// For state management
+export enum StateType {
+  Init = 'init',
+  HasDependentVariable = 'dependent variable',
+  HasIndependentVariable = 'independent variable',
+  HasBothVariables = 'has both dependent variable and independent variable'
+}
+
+// Define the allowable keys for the variables object
+export type VariableKey = 'independent_variable' | 'dependent_variable';
+
+// Define the structure for the variables object
+export interface Variables {
+  independent_variable?: string;
+  dependent_variable?: string;
+}
+
+// Define the structure for the state data
+export interface StateData {
+  [conversationId: string]: {
+    state: string;
+    variables: Variables
+  };
+}
+
+// Type guard to check if a key is a valid VariableKey
+export function isValidVariableKey(key: any): key is VariableKey {
+  return ['independent_variable', 'dependent_variable'].includes(key);
+}
+
+// For file analysis
 // Directory containing CSV files
 const directoryPath = path.resolve(process.env.STORAGE as string);
 
